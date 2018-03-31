@@ -1,0 +1,221 @@
+version 17.3R1.10;
+system {
+    host-name node2;
+    root-authentication {
+        encrypted-password "$6$rJ9jQvDC$r9anPZwzVjXji5T6nz0j4nOaZ1LkRVv11nL6sKGBLH7dkeTBu6.IX866yz4hCbls61637./JxbWL5T1CcsOPs1"; ## SECRET-DATA
+    }
+    syslog {
+        user * {
+            any emergency;
+        }
+        file messages {
+            any notice;
+            authorization info;
+        }
+        file interactive-commands {
+            interactive-commands any;
+        }
+    }
+    processes {
+        dhcp-service {
+            traceoptions {
+                file dhcp_logfile size 10m;
+                level all;
+                flag all;
+            }
+        }
+    }
+}
+chassis {
+    aggregated-devices {
+        ethernet {
+            device-count 2;
+        }
+    }
+}
+interfaces {
+    ge-0/0/0 {
+        unit 0 {
+            family inet {
+                address 1.0.0.4/31;
+            }
+        }
+    }
+    ge-0/0/1 {
+        unit 0 {
+            family inet {
+                address 1.0.0.6/31;
+            }
+        }
+    }
+    ge-0/0/2 {
+        ether-options {
+            802.3ad ae0;
+        }
+    }
+    ae0 {
+        esi {
+            00:11:22:33:44:55:66:77:88:99;
+            all-active;
+        }
+        aggregated-ether-options {
+            lacp {
+                active;
+                system-id 00:00:00:00:00:22;
+            }
+        }
+        unit 0 {
+            family bridge {
+                interface-mode trunk;
+                vlan-id-list [ 100 300 400 ];
+            }
+        }
+    }
+    fxp0 {
+        unit 0 {
+            family inet {
+                dhcp {
+                    vendor-id Juniper-vmx;
+                }
+            }
+        }
+    }
+    lo0 {
+        unit 0 {
+            family inet {
+                address 2.2.2.2/32;
+            }
+        }
+    }
+}
+routing-options {
+    router-id 2.2.2.2;
+    autonomous-system 65001;
+    forwarding-table {
+        export load-balance;
+    }
+}
+protocols {
+    bgp {
+        group underlay {
+            type external;
+            family inet {
+                unicast;
+            }
+            export lo0;
+            multipath multiple-as;
+            neighbor 1.0.0.5 {
+                peer-as 65002;
+            }
+            neighbor 1.0.0.7 {
+                peer-as 65003;
+            }
+        }
+        group EVPN_VxLAN {
+            type external;
+            multihop {
+                ttl 255;
+                no-nexthop-change;
+            }
+            local-address 2.2.2.2;
+            family evpn {
+                signaling;
+            }
+            neighbor 3.3.3.3 {
+                peer-as 65002;
+            }
+            neighbor 1.1.1.1 {
+                peer-as 65000;
+            }
+            neighbor 4.4.4.4 {
+                peer-as 65003;
+            }
+        }
+    }
+}
+policy-options {
+    policy-statement import {
+        term t1 {
+            from community [ com100 esi ];
+            then accept;
+        }
+        term t2 {
+            from community com200;
+            then accept;
+        }
+        term t3 {
+            from community com300;
+            then accept;
+        }
+        term t4 {
+            from community com400;
+            then accept;
+        }
+    }
+    policy-statement lo0 {
+        term 1 {
+            from {
+                route-filter 2.2.2.2/32 exact;
+            }
+            then accept;
+        }
+    }
+    policy-statement load-balance {
+        term 1 {
+            then {
+                load-balance per-packet;
+            }
+        }
+    }
+    community com100 members target:1:100;
+    community com200 members target:1:200;
+    community com300 members target:1:300;
+    community com400 members target:1:400;
+    community esi members target:9999:9999;
+}
+routing-instances {
+    vswitch1 {
+        vtep-source-interface lo0.0;
+        instance-type virtual-switch;
+        route-distinguisher 1.1.1.1:1;
+        vrf-import import;
+        vrf-target target:111:111;
+        protocols {
+            evpn {
+                encapsulation vxlan;
+                extended-vni-list [ 1100 1200 1300 1400 ];
+                multicast-mode ingress-replication;
+            }
+        }
+        bridge-domains {
+            bd1100 {
+                vlan-id 100;
+                vxlan {
+                    vni 1100;
+                    ingress-node-replication;
+                }
+            }
+            bd1200 {
+                vlan-id 200;
+                vxlan {
+                    vni 1200;
+                    ingress-node-replication;
+                }
+            }
+            bd1300 {
+                vlan-id 300;
+                vxlan {
+                    vni 1300;
+                    ingress-node-replication;
+                }
+            }
+            bd1400 {
+                vlan-id 400;
+                vxlan {
+                    vni 1400;
+                    ingress-node-replication;
+                }
+            }
+        }
+    }
+}
