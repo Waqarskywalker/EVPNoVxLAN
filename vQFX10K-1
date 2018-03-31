@@ -1,0 +1,274 @@
+
+system {
+    host-name node3;
+    root-authentication {
+        encrypted-password "$6$rJ9jQvDC$r9anPZwzVjXji5T6nz0j4nOaZ1LkRVv11nL6sKGBLH7dkeTBu6.IX866yz4hCbls61637./JxbWL5T1CcsOPs1"; ## SECRET-DATA
+        ssh-rsa "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ== vagrant insecure public key"; ## SECRET-DATA
+    }
+    login {
+        user vagrant {
+            uid 2000;
+            class super-user;
+            authentication {
+                ssh-rsa "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ== vagrant insecure public key"; ## SECRET-DATA
+            }
+        }
+    }
+    services {
+        ssh {
+            root-login allow;
+        }
+        netconf {
+            ssh;
+        }
+        rest {
+            http {
+                port 8080;
+            }
+            enable-explorer;
+        }
+    }
+    syslog {                            
+        user * {
+            any emergency;
+        }
+        file messages {
+            any notice;
+            authorization info;
+        }
+        file interactive-commands {
+            interactive-commands any;
+        }
+    }
+    extensions {
+        providers {
+            juniper {
+                license-type juniper deployment-scope commercial;
+            }
+            chef {
+                license-type juniper deployment-scope commercial;
+            }
+        }
+    }
+}
+chassis {                               
+    aggregated-devices {
+        ethernet {
+            device-count 2;
+        }
+    }
+}
+interfaces {
+       xe-0/0/0 {
+        unit 0 {
+            family inet {
+                address 1.0.0.1/31;
+            }
+        }
+    }                                   
+    xe-0/0/1 {                          
+        unit 0 {
+            family inet {
+                address 1.0.0.5/31;
+            }
+        }
+    }
+
+    xe-0/0/2 {
+        ether-options {
+            802.3ad ae0;
+        }
+    }
+    ae0 {
+        esi {
+            00:02:03:04:05:06:06:08:09:10;
+            all-active;
+        }
+        aggregated-ether-options {
+            lacp {
+                active;
+                system-id 00:00:00:00:11:11;
+            }
+        }
+        unit 0 {
+            family ethernet-switching {
+                interface-mode trunk;
+                vlan {
+                    members all;
+                }
+            }
+        }
+    }
+    em0 {
+        unit 0 {
+            family inet {
+                dhcp;
+            }
+        }
+    }
+    em1 {
+        unit 0 {
+            family inet {
+                address 169.254.0.2/24;
+            }
+        }
+    }
+    lo0 {
+        unit 0 {
+            family inet {
+                address 3.3.3.3/32;
+            }
+        }
+    }
+}
+forwarding-options {
+    storm-control-profiles default {
+        all;
+    }
+}
+routing-options {
+    router-id 3.3.3.3;
+    autonomous-system 65002;
+    forwarding-table {
+        export load-balance;
+    }
+}
+protocols {
+    bgp {
+        group underlay {
+            type external;
+            family inet {
+                unicast;
+            }
+            export lo0;
+            multipath multiple-as;
+            neighbor 1.0.0.0 {
+                peer-as 65000;
+            }
+            neighbor 1.0.0.4 {
+                peer-as 65001;
+            }
+        }
+        group EVPN_VxLAN {
+            type external;
+            multihop {
+                ttl 255;
+                no-nexthop-change;
+            }
+            local-address 3.3.3.3;
+            family evpn {
+                signaling;
+            }
+            neighbor 1.1.1.1 {
+                peer-as 65000;
+            }
+            neighbor 2.2.2.2 {
+                peer-as 65001;
+            }
+            neighbor 4.4.4.4 {
+                peer-as 65003;
+            }
+        }
+    }
+    evpn {
+        encapsulation vxlan;
+        extended-vni-list [ 1100 1200 1300 1400 ];
+        multicast-mode ingress-replication;
+        vni-options {
+            vni 1100 {
+                vrf-target export target:1:100;
+            }
+            vni 1200 {
+                vrf-target export target:1:200;
+            }
+            vni 1300 {
+                vrf-target export target:1:300;
+            }
+            vni 1400 {
+                vrf-target export target:1:400;
+            }
+        }
+    }
+    igmp-snooping {
+        vlan default;
+    }
+}
+policy-options {
+    policy-statement lo0 {
+        term 1 {
+            from {
+                route-filter 3.3.3.3/32 exact;
+            }
+            then accept;
+        }
+    }
+    policy-statement load-balance {
+        term 1 {
+            then {
+                load-balance per-packet;
+            }
+        }
+    }
+    policy-statement vrf-imp {
+        term t1 {
+            from community com100;
+            then accept;
+        }
+        term t2 {
+            from community com200;
+            then accept;
+        }
+        term t3 {
+            from community com300;
+            then accept;
+        }
+        term t4 {
+            from community com400;
+            then accept;
+        }
+    }
+    community com100 members target:1:100;
+    community com200 members target:1:200;
+    community com300 members target:1:300;
+    community com400 members target:1:400;
+}
+switch-options {
+    vtep-source-interface lo0.0;
+    route-distinguisher 3.3.3.3:1;
+    vrf-import vrf-imp;
+    vrf-target target:9999:9999;
+}
+vlans {
+    default {
+        vlan-id 1;
+    }
+    v100 {
+        vlan-id 100;
+        vxlan {
+            vni 1100;
+            ingress-node-replication;
+        }
+    }
+    v200 {
+        vlan-id 200;
+        vxlan {
+            vni 1200;
+            ingress-node-replication;
+        }
+    }
+    v300 {
+        vlan-id 300;
+        vxlan {
+            vni 1300;
+            ingress-node-replication;
+        }
+    }
+    v400 {
+        vlan-id 400;
+        vxlan {
+            vni 1400;
+            ingress-node-replication;
+        }
+    }
+    
+}
